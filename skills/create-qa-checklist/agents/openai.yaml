@@ -1,0 +1,3 @@
+interface:
+  display_name: "Create QA Checklist"
+  short_description: "QA checklist and test plan from a feature spec"

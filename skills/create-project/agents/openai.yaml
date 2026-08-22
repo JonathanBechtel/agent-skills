@@ -1,0 +1,3 @@
+interface:
+  display_name: "Create Project"
+  short_description: "Spec document to orchestrator-ready GitHub Project"
