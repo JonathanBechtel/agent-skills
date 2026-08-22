@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Link this repo's skills into Claude Code and Codex CLI.
+# Link this repo's skills into Claude Code and Codex CLI, and link each
+# configured checkout's own skills back into repos/ for one-place browsing.
 # Idempotent: safe to re-run. Backs up any real file it replaces.
 set -euo pipefail
 
@@ -23,6 +24,7 @@ link() {  # link <source> <target>
   echo "  $dst -> $src"
 }
 
+echo "== global skills -> both runtimes"
 mkdir -p "$CLAUDE_SKILLS" "$CLAUDE_COMMANDS" "$CODEX_SKILLS"
 
 for dir in "$REPO"/skills/*/; do
@@ -45,6 +47,26 @@ for cmd in "$REPO"/claude-commands/*.md; do
   echo "command $(basename "$cmd"):"
   link "$cmd" "$CLAUDE_COMMANDS/$(basename "$cmd")"
 done
+
+echo
+echo "== repo skills -> repos/ (links in, files stay in their repo)"
+mkdir -p "$REPO/repos"
+
+if [ -f "$REPO/repos.conf" ]; then
+  while IFS='=' read -r name path; do
+    case "$name" in ''|\#*) continue ;; esac
+    path="${path/#\~/$HOME}"
+    dst="$REPO/repos/$name"
+    if [ ! -d "$path/.claude/skills" ]; then
+      echo "  $name: no checkout at $path — skipped"
+      rm -f "$dst"
+      continue
+    fi
+    rm -f "$dst"
+    ln -s "$path/.claude/skills" "$dst"
+    echo "  repos/$name -> $path/.claude/skills"
+  done < "$REPO/repos.conf"
+fi
 
 echo
 echo "Done. Backups (if any): $BACKUP"

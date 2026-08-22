@@ -1,0 +1,3 @@
+# Links into local checkouts, regenerated per machine by install.sh from repos.conf.
+# Machine-specific absolute paths have no business in history.
+repos/

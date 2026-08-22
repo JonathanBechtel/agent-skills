@@ -60,3 +60,32 @@ Code and `$name` in Codex.
 
 Clone and run `./install.sh`. That is the whole setup — the sprite and the laptop
 then run identical skills.
+
+## Repo-specific skills
+
+Some skills belong to one repo and are committed to it. Those files stay where
+they are — tracked, and working in worktrees, CI, and on the sprite, none of
+which a machine-specific symlink survives.
+
+`install.sh` instead links the other way: `repos/<name>` points into that
+checkout's `.claude/skills`, so everything is reachable from here without moving
+anything. Edit through the link and you are editing the repo's own file.
+
+```
+repos/draft-app       -> ~/draft-app/.claude/skills
+repos/platform-ai     -> ~/platform-ai/.claude/skills
+```
+
+Configure which checkouts in `repos.conf`. `repos/` itself is gitignored — the
+config is portable, the links are per-machine. Missing checkouts are skipped.
+
+`validate.sh` reports on repo skills without enforcing: most are Claude-only by
+design, so whether they satisfy Codex's stricter rules is information, not a
+verdict. It also flags the flat `<name>.md` layout, which Codex cannot load at
+all — that is what to convert if a repo skill should work in both runtimes.
+
+## Deprecated
+
+`deprecated/` holds retired skills, kept for reference and out of the live
+directories. A dead skill is not harmless: its description still competes for
+selection when a runtime picks a skill for a task.
