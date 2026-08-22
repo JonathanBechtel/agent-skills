@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Validate every skill against Codex's own frontmatter rules.
+# Validate every skill against Codex's own frontmatter rules, and check that
+# repo skills are actually reachable from Codex.
 #
 # This is the guard. Claude Code accepts frontmatter keys Codex rejects
 # (when-to-use, argument-hint, user-invocable), and Codex additionally rejects
@@ -7,8 +8,10 @@
 # serving both runtimes only stays valid if something checks.
 #
 # Global skills are enforced — they ship to both runtimes, so a failure is a
-# failure. Repo skills are reported only: most are Claude-only by design, and
-# whether they satisfy Codex is information, not a verdict.
+# failure. Repo skills are reported: whether they satisfy Codex's rules, and
+# whether .agents/skills has an entry pointing at them. A skill can be perfectly
+# valid and still invisible to Codex, because Codex reads repo-scoped skills
+# from .agents/skills, not .claude/skills.
 set -euo pipefail
 
 REPO="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
@@ -36,25 +39,38 @@ done
 
 if [ -d "$REPO/repos" ]; then
   echo
-  echo "== repo skills (reported only)"
+  echo "== repo skills (frontmatter / codex-reachable)"
   for repo in "$REPO"/repos/*/; do
     [ -e "$repo" ] || continue
-    echo "  $(basename "$repo"):"
+    rname="$(basename "$repo")"
+    root="$(dirname "$(dirname "$(realpath "$repo")")")"   # <checkout>/.claude/skills -> <checkout>
+    echo "  $rname:"
     for skill in "$repo"*/; do
       [ -d "$skill" ] || continue
-      printf '    %-24s ' "$(basename "$skill")"
+      sname="$(basename "$skill")"
+      printf '    %-24s ' "$sname"
+
       if [ ! -f "${skill}SKILL.md" ]; then
         echo "no SKILL.md"
-      elif python3 "$VALIDATOR" "$skill" >/dev/null 2>&1; then
-        echo "codex-ready"
+        continue
+      fi
+
+      if python3 "$VALIDATOR" "$skill" >/dev/null 2>&1; then
+        printf 'valid'
       else
-        echo "claude-only ($(python3 "$VALIDATOR" "$skill" 2>&1 | head -1))"
+        printf 'claude-only'
+      fi
+
+      if [ -e "$root/.agents/skills/$sname/SKILL.md" ]; then
+        echo " · codex-reachable"
+      else
+        echo " · NOT reachable from Codex (no .agents/skills/$sname)"
       fi
     done
     for flat in "$repo"*.md; do
       [ -e "$flat" ] || continue
       printf '    %-24s ' "$(basename "$flat")"
-      echo "flat file — not a Codex skill layout"
+      echo "flat file — Codex cannot load this layout"
     done
   done
 fi

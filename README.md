@@ -89,3 +89,32 @@ all — that is what to convert if a repo skill should work in both runtimes.
 `deprecated/` holds retired skills, kept for reference and out of the live
 directories. A dead skill is not harmless: its description still competes for
 selection when a runtime picks a skill for a task.
+
+## Adding a skill
+
+`./new-skill.sh <name> --global` or `./new-skill.sh <name> --repo` — the script
+puts the file in the right place and wires both runtimes. The scope question is
+the only judgment call:
+
+> Does the skill name this repo's paths, commands, or conventions? Repo-scoped.
+> Would it work unchanged in another checkout? Global.
+
+**Global.** Created here in `skills/<name>/`. Run `./install.sh` to link it into
+both runtimes, then commit and push — *that commit is the sync*. Nothing else
+copies it anywhere.
+
+The trap: writing a global skill while you happen to be standing in a repo, and
+saving it into that repo's `.claude/skills`. It then works in one checkout and
+nowhere else. If a skill is worth having everywhere, it belongs here.
+
+**Repo-scoped.** Created in `<checkout>/.claude/skills/<name>/`, and committed to
+*that* repo — never to this one. There is nothing to sync: `repos/<name>` is a
+live link into the checkout, so it appears here the moment it exists.
+
+The one thing to remember is the Codex entry point. Codex reads repo-scoped
+skills from `.agents/skills`, not `.claude/skills`, so a skill in `.claude` alone
+is invisible to it. `new-skill.sh` creates the symlink for you; `validate.sh`
+reports any skill missing one. If the skill reads from a resource directory,
+symlink that too — a linked `SKILL.md` alone leaves its references dangling.
+
+Both scopes: run `./validate.sh` before committing.
