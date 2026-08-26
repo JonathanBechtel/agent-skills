@@ -15,7 +15,9 @@
 set -euo pipefail
 
 REPO="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
-VALIDATOR="$HOME/.codex/skills/.system/skill-creator/scripts/quick_validate.py"
+CODEX_CONFIG_DIR="${CODEX_HOME:-$HOME/.codex}"
+CODEX_SKILLS="$CODEX_CONFIG_DIR/skills"
+VALIDATOR="$CODEX_SKILLS/.system/skill-creator/scripts/quick_validate.py"
 
 if [ ! -f "$VALIDATOR" ]; then
   echo "Codex validator not found at $VALIDATOR" >&2
@@ -23,17 +25,53 @@ if [ ! -f "$VALIDATOR" ]; then
   exit 2
 fi
 
+if python3 -c 'import yaml' >/dev/null 2>&1; then
+  validator_cmd=(python3 "$VALIDATOR")
+elif command -v uv >/dev/null 2>&1; then
+  validator_cmd=(uv run --quiet --with PyYAML python "$VALIDATOR")
+else
+  echo "Codex's validator requires PyYAML, but python3 cannot import yaml." >&2
+  echo "Install PyYAML or uv, then run this script again." >&2
+  exit 2
+fi
+
+validate_skill() {
+  "${validator_cmd[@]}" "$1"
+}
+
+# Codex's default loader walks directories and follows directory symlinks. A
+# real SKILL.md is discoverable through either, but a leaf SKILL.md symlink is
+# ignored by the walker.
+codex_reachable() {
+  local entry="$1"
+  [ -d "$entry" ] && [ -f "$entry/SKILL.md" ] && [ ! -L "$entry/SKILL.md" ]
+}
+
 fail=0
 
 echo "== global (enforced)"
 for dir in "$REPO"/skills/*/; do
   printf '  %-22s ' "$(basename "$dir")"
-  if python3 "$VALIDATOR" "$dir" >/dev/null 2>&1; then
-    echo "ok"
+  if validate_skill "$dir" >/dev/null 2>&1; then
+    printf 'valid'
   else
     echo "FAILED"
-    python3 "$VALIDATOR" "$dir" 2>&1 | sed 's/^/      /'
+    validate_skill "$dir" 2>&1 | sed 's/^/      /'
     fail=1
+    continue
+  fi
+
+  name="$(basename "$dir")"
+  installed="$CODEX_SKILLS/$name"
+  if [ -e "$installed" ] || [ -L "$installed" ]; then
+    if codex_reachable "$installed"; then
+      echo " · codex-reachable"
+    else
+      echo " · NOT discoverable (link the skill directory, not SKILL.md)"
+      fail=1
+    fi
+  else
+    echo " · not installed"
   fi
 done
 
@@ -55,16 +93,16 @@ if [ -d "$REPO/repos" ]; then
         continue
       fi
 
-      if python3 "$VALIDATOR" "$skill" >/dev/null 2>&1; then
+      if validate_skill "$skill" >/dev/null 2>&1; then
         printf 'valid'
       else
         printf 'claude-only'
       fi
 
-      if [ -e "$root/.agents/skills/$sname/SKILL.md" ]; then
+      if codex_reachable "$root/.agents/skills/$sname"; then
         echo " · codex-reachable"
       else
-        echo " · NOT reachable from Codex (no .agents/skills/$sname)"
+        echo " · NOT reachable from Codex (link the whole .agents/skills/$sname directory)"
       fi
     done
     for flat in "$repo"*.md; do

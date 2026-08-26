@@ -6,8 +6,9 @@ The orchestrator skill chain, as one source shared by Claude Code and Codex CLI.
 /create-product-pitch  →  tech spec  →  /create-qa-checklist  →  /create-project  →  /orchestrate  →  /ship
 ```
 
-Each skill is one file. Both runtimes read that same file through a symlink, so
-there is no second copy to keep in step.
+Each skill is one package directory. Both runtimes read that same directory
+through a symlink, so there is no second copy to keep in step and bundled
+metadata, scripts, references, and assets remain available.
 
 ## Why a repo
 
@@ -16,7 +17,7 @@ as hand-maintained duplicates. They drifted — the Codex `ship` had lost the
 simplification pass, and the Codex `orchestrate` had become a different procedure
 entirely. An invariant maintained by hand, with no guard, is not an invariant.
 
-Two things fix it structurally: a single file behind two symlinks, and
+Two things fix it structurally: a single package behind two directory symlinks, and
 `validate.sh`, which fails when a file stops being valid for either runtime.
 
 ## Layout
@@ -32,7 +33,7 @@ validate.sh                     check every skill against Codex's own rules
 ## Install
 
 ```bash
-./install.sh     # symlinks into ~/.claude and ~/.codex; backs up anything it replaces
+./install.sh     # symlinks into ~/.claude and ${CODEX_HOME:-$HOME/.codex}; backs up replacements
 ./validate.sh    # verify
 ```
 
@@ -40,7 +41,12 @@ Re-run `install.sh` after adding a skill. It is idempotent.
 
 ## Editing
 
-Edit the file in `skills/`. Both runtimes see it immediately — no copying, no sync step.
+Edit the package in `skills/`. Both runtimes see it immediately — no copying, no sync step.
+
+The directory link is significant. Codex follows symlinked skill directories
+while discovering `SKILL.md`, but its default walker ignores a `SKILL.md` that
+is itself a symlink. Linking the whole package also makes `agents/openai.yaml`
+and any bundled resources available automatically.
 
 Then run `./validate.sh`. The frontmatter must satisfy **both** runtimes, and Codex
 is the stricter one:
@@ -113,8 +119,8 @@ live link into the checkout, so it appears here the moment it exists.
 
 The one thing to remember is the Codex entry point. Codex reads repo-scoped
 skills from `.agents/skills`, not `.claude/skills`, so a skill in `.claude` alone
-is invisible to it. `new-skill.sh` creates the symlink for you; `validate.sh`
-reports any skill missing one. If the skill reads from a resource directory,
-symlink that too — a linked `SKILL.md` alone leaves its references dangling.
+is invisible to it. `new-skill.sh` links the complete skill directory for you;
+`validate.sh` reports missing entries and the old file-only symlink layout that
+Codex does not discover.
 
 Both scopes: run `./validate.sh` before committing.
