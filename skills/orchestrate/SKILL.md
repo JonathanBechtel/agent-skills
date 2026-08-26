@@ -160,14 +160,37 @@ Process the wave's tickets in topological order.
 4. Mark the task `completed`.
 
 **Parallel tickets (several ready, no file overlap):**
+
+> **Non-overlapping files is NOT sufficient isolation.** The working tree, the git index, and the
+> stash stack are shared. An agent told "don't edit these files" will still run repo-wide git
+> commands, and a single `git stash` sweeps up a sibling's uncommitted work. This has cost real
+> work — recovered only via `git fsck --unreachable` and an immediate rescue tag.
+>
+> **Parallel agents require separate worktrees.** In a shared worktree, run the stage
+> **sequentially** even when the DAG permits parallelism. Sequential-and-correct beats
+> parallel-and-lossy; the wall-clock saving is not worth the recovery.
+
 1. Mark all `in_progress`.
-2. Spawn them all at once — one message with multiple `Agent` calls (Claude) or multiple `spawn_agent` calls then `wait` (Codex). Respect the concurrency cap.
+2. Give each agent its own worktree, then spawn them all at once — one message with multiple `Agent` calls (Claude) or multiple `spawn_agent` calls then `wait` (Codex). Respect the concurrency cap.
 3. As each returns, check its result and mark it `completed`.
 4. Proceed only when the whole stage is done.
+
+If separate worktrees are unavailable, collapse the stage to sequential and note it in the plan.
 
 #### 7.3 Wave gate
 
 Before shipping the wave, run the repo's own Definition of Done from `AGENTS.md`/`CLAUDE.md` — lint, format, full type check, the relevant test tiers, and any coverage or perf gate the repo enforces. Run it **once for the whole wave**, in the main session, not per ticket: agents check their own slice, and the thing that breaks is the seam between slices.
+
+**Run the FULL test suite here, never a scoped subset.** A ticket agent's scoped run can be
+green while the full suite is red — that is precisely the seam this gate exists to catch. On one
+run a fix agent reported all-green from scoped tests while the full integration suite had four
+failures, two of them in shared per-tick query budgets that no scoped selection would have
+touched. If the gate is scoped, it is not a gate.
+
+**Do not trust an agent's self-report in place of running the gate.** Agents die mid-run, and
+several die during a redundant re-verification *after* their real work is sound. When an agent
+fails but its work is staged and its own checks passed, prefer verifying the DoD yourself and
+committing on its behalf over respawning and redoing the work.
 
 If the gate fails: diagnose, and dispatch a fix agent scoped to the failure (still not writing the code yourself). Gate failures are ordinary work, not a stop condition. If the same gate fails after 3 fix attempts on the same root cause, that is hard-stop #2 in the autonomy contract.
 
@@ -200,6 +223,18 @@ Never expand the current wave to absorb a follow-up. That is how a bounded run t
 ### Step 8 — Handle agent failures
 
 **First failure — retry once.** Read the agent's output, construct an improved prompt carrying the original ticket, what went wrong, and specific guidance to avoid it. Spawn a fresh agent.
+
+**Before retrying, check whether the work is actually salvageable.** Agents frequently die *after*
+doing sound work — stalled on a background wait, killed by a stream watchdog, or lost to an expired
+session, often during a redundant re-verification pass. Run `git status` and `git log` first:
+
+- **Work is staged/modified and the agent reported its own checks green** → do NOT respawn. Verify
+  the repo's Definition of Done yourself in the main session, stage the agent's explicit paths, and
+  commit on its behalf. Respawning discards an hour of correct work and re-rolls the dice.
+- **Work is absent or incoherent** → retry with an improved prompt as below.
+- **Work has vanished unexpectedly** → check `git reflog`, then
+  `git fsck --unreachable | grep commit`, then sort candidates by date. Tag anything you recover
+  *immediately* so GC cannot take it.
 
 **Second failure — decide by mode:**
 
@@ -275,6 +310,19 @@ key signatures. This is how the agent learns what is already in the codebase.>
 <In wave mode, also note which earlier waves are already merged to main, so the agent knows
 that code is on its base and does not rebuild it.>
 
+## Execution rules — these are hard
+
+- **Never start a background job, and never wait on one.** Run every command in the
+  FOREGROUND with an explicit long timeout (e.g. `timeout: 900000`). Agents that park
+  waiting on a background test run stall indefinitely and have to be rescued.
+- **Never delegate to a sub-agent.** Do the work yourself.
+- **Commit as soon as your own checks pass. Do NOT re-run suites to double-confirm.**
+  The redundant second verification pass is where agents die mid-run and lose their report.
+- **Never run `git stash`, `git reset`, `git checkout -- `, or `git restore`.** These are
+  repo-wide and will destroy a concurrent agent's uncommitted work.
+- **Stage explicit paths.** Never `git add -A` or `git add .`.
+- If a check genuinely cannot pass, STOP and report which one and why. Do not commit around it.
+
 ## Instructions
 
 1. Read every file listed in "Files to change" to understand current state.
@@ -286,6 +334,10 @@ that code is on its base and does not rebuild it.>
    no AI attribution.
 7. Update the issue label:
    gh issue edit <NUMBER> --repo <REPO> --remove-label "status:open" --add-label "status:done"
+
+**Do not run repo-wide coverage** (`make coverage.diff` or equivalent). That is a wave-level
+gate the orchestrator runs once; running it per ticket costs ~20 minutes each for a check
+that is repeated anyway.
 ```
 
 ## Resuming
