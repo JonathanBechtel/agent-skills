@@ -520,9 +520,25 @@ gh run watch <RUN_ID> --exit-status
 
 (In DraftGuru: `fly-deploy-stage.yml` → https://draft-app.fly.dev.)
 
-- **Green** → landed. Report the deployed URL.
+- **Green** → **verify the deployed state before calling it landed** (see below).
 - **Red** → hard stop in **both** modes. Print the notify-block with the failing step's log, the merge sha, and the revert command (`git revert -m 1 <MERGE_SHA>`) — but do **not** revert on your own. That is a human call.
 - **No deploy workflow found** → fine. Note it and finish.
+
+**A green deploy is not proof the change took effect.** Read the deployed object's own state and
+confirm the thing you shipped is actually there. What that means depends on the change:
+
+- **Migrations** → query the deployed database: the alembic version, and that the specific tables,
+  columns, indexes and constraints you added exist *in the shape you intended*. An index can exist
+  while being non-unique or `indisvalid = false`; a constraint can be absent while the table is
+  present.
+- **Config / infrastructure** → read the deployed object's config and its own logs, not the
+  workflow's exit code.
+- **Behavior** → exercise the endpoint or job and read what it returns.
+
+This step exists because it has caught real failures that every green check missed. On one run the
+deploy went green while its migration had failed against a database whose schema had drifted; on
+another, CI, the deploy, and the repo's own verifier were all green while the production cron was
+dead. Do not skip it because the checkmark looks convincing.
 
 ## C.5 Landed summary
 
