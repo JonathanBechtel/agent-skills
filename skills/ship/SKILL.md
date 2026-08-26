@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Commit, push, open a PR, then watch CI and bot reviewers until it is clean - fixing what is correct, replying on false positives, deferring what is out of scope to follow-up tickets. Review rounds scale to the size of the diff. With --merge it also resolves threads, squash-merges, and watches the deploy. Use when asked to ship a branch, open a PR, watch CI, address review feedback, or land a PR.
+description: Commit, push, open a PR, recursively address CI and bot review feedback within a size-derived fix budget, then by default resolve threads, squash-merge, and watch the deploy. Use --no-merge to stop when the PR is clean and ready. Use when asked to ship a branch, open a PR, watch CI, address review feedback, or land a PR.
 metadata:
   short-description: Commit, PR, review rounds, merge, deploy watch
 ---
@@ -11,7 +11,8 @@ One skill, three phases:
 
 - **Phase A — Ship:** branch from main if needed, commit pending changes, push, open the PR.
 - **Phase B — Watch:** monitor CI + bot reviewers until the PR is green, mergeable, and every comment is dealt with. Fix what's correct, reply on false positives, defer what's out of scope (B.4). Rounds scale to the size of the change (B.0).
-- **Phase C — Land:** *(only with `--merge`)* resolve the review threads, squash-merge, watch the deploy. A PR is shipped when it deployed, not when it was mergeable.
+- **Phase C — Land:** *(default; skipped only with `--no-merge`)* resolve the review threads,
+  squash-merge, watch the deploy. A PR is shipped when it deployed, not when it was mergeable.
 
 Every step is a no-op if its work is already done, so `/ship` can be invoked from any state (on main with dirty tree, on a feature branch uncommitted, committed-not-pushed, PR-already-open, PR-open-with-failing-CI).
 
@@ -34,7 +35,9 @@ Everything else is identical across runtimes. If yours lacks a primitive above, 
 
 - `<PR#>` — explicit PR number. Skip Phase A entirely; watch the specified PR. Always wins over any inferred PR.
 - `--no-simplify` — skip the A.2.5 simplification pass for this run (e.g. when you've already simplified, or the diff is sensitive). The pass is on by default.
-- `--merge` / `--no-merge` — whether Phase C lands the PR (squash-merge to base, then watch the deploy). Default: **off** for a human-invoked `/ship`, **on** when invoked by `/orchestrate` or alongside `--autonomous`.
+- `--merge` / `--no-merge` — whether Phase C lands the PR (squash-merge to base, then watch the
+  deploy). Default: **on for every invocation**. Use `--no-merge` to stop after Phase B with a clean,
+  mergeable PR. `--merge` remains accepted as an explicit affirmation and for compatibility.
 - `--autonomous` — unattended mode; implies `--merge`. Widens what may proceed without asking. See *Autonomy contract*.
 - `--rounds <N|auto>` — maximum reviewer-fix iterations before landing. Default `auto`
   (size-derived; see B.0). The name is retained for CLI compatibility; clean review probes do not
@@ -378,7 +381,8 @@ Fix iterations: <n> of <budget> (converged)
 Ready for merge.
 ```
 
-Then: if `--merge` is in effect, continue to **Phase C**. Otherwise **stop** — do not schedule another tick.
+Then: continue to **Phase C** unless `--no-merge` was explicitly passed. With `--no-merge`, **stop**
+ready for merge and do not schedule another tick.
 
 ## B.4 Triage rules
 
@@ -482,7 +486,8 @@ If the conversation gets compacted mid-watch, reconstruct the ledger from:
 
 # Phase C — Land
 
-Runs only when `--merge` is in effect, and only after Phase B's done condition holds.
+Runs by default after Phase B's done condition holds. Skip it only when `--no-merge` was explicitly
+passed.
 
 ## C.1 Resolve review threads
 
