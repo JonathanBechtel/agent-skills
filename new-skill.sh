@@ -57,6 +57,7 @@ case "$scope" in
 interface:
   display_name: "$(echo "$name" | tr '-' ' ')"
   short_description: "TODO short label for the Codex skill list"
+  default_prompt: "Use \$$name to TODO describe a representative request."
 EOF
     echo "  wrote $dir/agents/openai.yaml"
     echo
@@ -78,17 +79,22 @@ EOF
     fi
 
     dir="$path/.claude/skills/$name"
+    codex_dir="$path/.agents/skills/$name"
     [ -e "$dir" ] && { echo "$dir already exists." >&2; exit 1; }
+    if [ -e "$codex_dir" ] || [ -L "$codex_dir" ]; then
+      echo "$codex_dir already exists." >&2
+      exit 1
+    fi
     write_template "$dir" "Repo-scoped: assume this checkout's layout, commands, and conventions."
 
-    mkdir -p "$path/.agents/skills/$name"
-    ln -sfn "../../../.claude/skills/$name/SKILL.md" "$path/.agents/skills/$name/SKILL.md"
-    echo "  linked $path/.agents/skills/$name/SKILL.md  (Codex entry point)"
+    mkdir -p "$path/.agents/skills"
+    ln -s "../../.claude/skills/$name" "$codex_dir"
+    echo "  linked $codex_dir  (Codex skill package)"
     echo
     echo "Next:"
     echo "  1. edit  $dir/SKILL.md"
     echo "  2. commit it in $path   # it belongs to that repo, not to agent-skills"
-    echo "  3. symlink any resource directory it reads into .agents/skills/$name/ too"
+    echo "  3. run $REPO/validate.sh"
     echo
     echo "Nothing to sync here: repos/ is a live link into that checkout."
     ;;
