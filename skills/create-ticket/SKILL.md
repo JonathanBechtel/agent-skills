@@ -132,6 +132,23 @@ Downgrade paths:
   review. This is where most tickets that fail exactly one axis land.
 - **`manual`** — yours.
 
+### One fix round is the test of this classification
+
+An `auto` ticket gets **one** correction round in CI, not a budget to spend. That
+is deliberate, and it is what keeps the five axes honest.
+
+The axes claim a ticket is narrow, contract-stated, and verifiable without a
+browser. If that is true, it lands first try or after one fix. If it is still red
+after that, the likeliest explanation is not that the agent needed another go —
+it is that **the classification was wrong**. More rounds would bury that under a
+green checkmark and teach nobody anything.
+
+So a ticket that exhausts its round comes back labelled `needs:human` with a
+comment naming what the ticket got wrong: too broad, a contract that did not
+hold, an undeclared dependency. Treat that comment as feedback on this skill's
+judgment, not just as a failed run. If tickets of a given shape keep coming back,
+that shape does not belong at `auto` — tighten the axis that let it through.
+
 A sixth axis is soft and worth weighing rather than scoring: **can the tier
 clear this repo's guards?** A repo that wants patch coverage on new lines,
 docstrings on touched tests, and a duplicate-code budget is asking for
