@@ -1,0 +1,4 @@
+interface:
+  display_name: "create ticket"
+  short_description: "File one well-formed, classified issue for small one-off work"
+  default_prompt: "Use $create-ticket to file a ticket for the Explorer CSV export returning only the current page."

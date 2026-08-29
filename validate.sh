@@ -113,4 +113,62 @@ if [ -d "$REPO/repos" ]; then
   done
 fi
 
+# The tier -> Codex agent mapping in create-ticket names agents that must exist
+# in each checkout's .codex/. That table is duplicated by nature: it lives in the
+# skill, in .codex/agents/<name>.toml, and in .codex/config.toml. An invariant
+# maintained by hand, with no guard, is not an invariant -- and the failure is
+# ugly, because the dispatcher routes an unattended job to an agent that does not
+# exist and the job dies on a config error with the ticket still labelled running.
+#
+# Enforced: the table must be parseable and must not name an agent that no
+# checkout defines. Reported: per-checkout gaps, consistent with how repo skills
+# are handled above.
+TIER_TABLE="$REPO/skills/create-ticket/SKILL.md"
+if [ -f "$TIER_TABLE" ]; then
+  echo
+  echo "== create-ticket tier table -> .codex/agents"
+
+  # Rows look like:  | small | `haiku` | `luna` |
+  # An em-dash in the Codex column means "no agent at this tier" — skip those,
+  # and skip the header and the |---|---| separator.
+  agents="$(sed -n '/^| tier | Claude Code | Codex |/,/^$/p' "$TIER_TABLE" \
+    | awk -F'|' 'NF>=5 {
+        gsub(/[[:space:]`]/, "", $4);
+        if ($4 == "" || $4 == "-" || $4 == "---" || $4 == "Codex") next;
+        if ($4 == "—") next;   # em-dash: no agent defined at this tier
+        print $4
+      }')"
+
+  if [ -z "$agents" ]; then
+    echo "  no Codex agents claimed — nothing to check"
+  else
+    for repo in "$REPO"/repos/*/; do
+      [ -e "$repo" ] || continue
+      rname="$(basename "$repo")"
+      root="$(dirname "$(dirname "$(realpath "$repo")")")"
+      # Only checkouts that actually define Codex agents have opted in. One with
+      # no .codex/agents/ is not misconfigured, it just does not use them.
+      [ -d "$root/.codex/agents" ] || continue
+      echo "  $rname:"
+      for a in $agents; do
+        printf '    %-24s ' "$a"
+        toml="$root/.codex/agents/$a.toml"
+        if [ ! -f "$toml" ]; then
+          echo "MISSING $root/.codex/agents/$a.toml"
+          fail=1
+          continue
+        fi
+        if ! grep -q "^\[agents\.$a\]" "$root/.codex/config.toml" 2>/dev/null; then
+          echo "defined, but no [agents.$a] in .codex/config.toml"
+          fail=1
+          continue
+        fi
+        model="$(sed -n 's/^model[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' "$toml" | head -1)"
+        effort="$(sed -n 's/^model_reasoning_effort[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' "$toml" | head -1)"
+        echo "ok · ${model:-no model} · ${effort:-default effort}"
+      done
+    done
+  fi
+fi
+
 exit "$fail"
