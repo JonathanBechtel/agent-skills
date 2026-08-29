@@ -224,7 +224,23 @@ If `gh pr view` returned `NO_PR`:
 
    ## Test plan
    - [ ] <bulleted checklist of tests/verification>
+
+   Closes #<ticket>
    ```
+
+   **The `Closes` lines matter.** If this PR implements tickets — `/orchestrate`
+   hands over the wave's numbers, and a `/create-ticket` run names one — add one
+   `Closes #<n>` line per ticket. GitHub then closes them atomically with the
+   merge.
+
+   This is the structural fix for a real leak: relabelling a ticket `status:done`
+   and trusting something later to close it does not work. In DraftGuru that
+   pattern left **188 finished issues open**, which buried every genuinely open
+   one and made the backlog unreadable. An invariant maintained by hand, with no
+   guard, is not an invariant — so let the merge do it.
+
+   Only add `Closes` for tickets this PR actually finishes. A partial
+   implementation gets a `Refs #<n>` instead.
 5. No co-author trailer.
 6. Create:
    ```bash
@@ -420,10 +436,20 @@ A finding can be correct and still not belong in this PR. Route by **scope**, no
 
 Filing a follow-up ticket:
 
+**Classify it as you file it.** A deferred finding is exactly the small, scoped,
+one-off work the `create-ticket` skill exists for, and a ticket born unclassified
+needs a human pass later that never comes — which is how a project's tail stops
+it being closed on time. Run `create-ticket`'s five axes (verification, blast
+radius, contract, dependencies, reversibility) and emit the full metadata block.
+
+**Label it `agent:queued`, never `agent:auto`.** Queued means eligible but held.
+This is the fail-safe: an executor that files its own follow-ups must not be able
+to start them. Promotion is a separate, deliberate act (see C.0).
+
 ```bash
 gh issue create --repo <REPO> \
   --title "<one-line, imperative>" \
-  --label "type:followup" --label "status:open" \
+  --label "type:followup" --label "status:open" --label "agent:queued" \
   --body "$(cat <<'EOF'
 Surfaced by review of PR #<N>: <comment url>
 
@@ -433,12 +459,31 @@ Surfaced by review of PR #<N>: <comment url>
 ## Why deferred
 <why it is out of scope for PR #<N>>
 
+## Files to change
+- `<path>` — <what changes here and why>
+
+## Definition of Done
+- <verifiable criteria>
+
+## Verification
+**Flavors:** <unit, integration | e2e | visual>
+- <exact test command>
+
 ## Orchestrator Metadata
-depends-on:
-agent: sonnet
+- depends-on: —
+- autonomy: auto | assisted | manual
+- tier: small | standard | deep
+- runtime: any
+- agent: haiku
+- codex-agent: luna
 EOF
 )"
 ```
+
+If the finding fails an axis — it needs a browser, it has no stated contract, it
+touches a migration — file it `autonomy: assisted` or `manual` and say which axis
+failed in `## Why deferred`. A follow-up that lies about being safe to run
+unattended is worse than one nobody files.
 
 If the PR came from a project board, add it there too:
 
@@ -488,6 +533,21 @@ If the conversation gets compacted mid-watch, reconstruct the ledger from:
 
 Runs by default after Phase B's done condition holds. Skip it only when `--no-merge` was explicitly
 passed.
+
+## C.0 Who promotes the queue
+
+Follow-ups filed in B.4 carry `agent:queued` — eligible, held. Something has to
+release them or they are just a differently-labelled backlog.
+
+- **Standalone `/ship`** — no waves are in flight, so **this run promotes**, at
+  C.5, after the merge lands.
+- **Invoked by `/orchestrate`** — **do not promote.** Orchestrate holds the whole
+  queue and releases it at its Step 10, after the final wave merges.
+
+The distinction is not bookkeeping. Orchestrate branches every wave from freshly
+pulled `main`, so a follow-up merging mid-project moves the base under a wave
+that has not run and can conflict with a ticket that has not started. Holding
+keeps the base stable and still drains the tail without a human.
 
 ## C.1 Resolve review threads
 
@@ -568,7 +628,25 @@ deploy went green while its migration had failed against a database whose schema
 another, CI, the deploy, and the repo's own verifier were all green while the production cron was
 dead. Do not skip it because the checkmark looks convincing.
 
-## C.5 Landed summary
+## C.5 Promote the queue, then summarize
+
+**Only when invoked standalone** — under `/orchestrate`, skip this entirely.
+
+For each follow-up this run filed at `autonomy: auto`, swap the label:
+
+```bash
+gh issue edit <N> --repo <REPO> --remove-label "agent:queued" --add-label "agent:auto"
+```
+
+That label application is what starts an unattended run, so it is subject to the
+same trust boundary as any other: promote only tickets **this run** filed, and
+never promote one whose `autonomy` is `assisted` or `manual`. Those stay queued
+for a human.
+
+If the merge's deploy failed (C.4), promote nothing. Base is red; adding work on
+top of it is the wrong move.
+
+### Landed summary
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
@@ -582,10 +660,17 @@ Fix iterations: <n> of <budget>  (<converged | budget spent>)
 Fixes applied: <count>          Autonomous logic changes: <count>
 
 Follow-up tickets filed:
-  - #<n> <title>
+  promoted to agent:auto (will run unattended)
+    - #<n> <title>
+  held as agent:queued (needs you)
+    - #<n> <title> — <which axis failed>
 
 Skipped with reply: <count>
 ```
+
+The split is the point. "Filed" alone does not tell you whether the tail of this
+work drains itself or waits on you, and that is the only question that decides
+whether the project can be closed.
 
 ## Guardrails
 

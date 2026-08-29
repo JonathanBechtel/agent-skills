@@ -216,9 +216,11 @@ Ship owns everything from here: simplification pass, PR, review rounds, triage, 
 Ship may have filed `type:followup` issues during review. For each one:
 
 - **Blocking for a later wave** — add it to that wave and re-validate the DAG. Rare; happens when review finds a shared assumption wrong.
-- **Otherwise** — leave it `status:open` and unrun. It is captured, and it is the next session's work. Say so in the final report.
+- **Otherwise** — it stays out of this run, but it does not become somebody's someday. Ship files it already classified and labelled `agent:queued` (its B.4). Leave it queued. Step 10 releases the queue after the final wave lands, and the ones that qualified for `autonomy: auto` then drain themselves.
 
 Never expand the current wave to absorb a follow-up. That is how a bounded run turns into an unbounded one.
+
+That refusal was always right; what was missing was a drain on the other side. "The next session's work" is not a plan — the next session does not come, so the project cannot honestly be closed and the next one starts under the last one's debt. Holding to Step 10 keeps the run bounded **and** empties the tail, because orchestrate branches every wave from freshly pulled `main`: a follow-up merging mid-project moves the base under a wave that has not run.
 
 ### Step 8 — Handle agent failures
 
@@ -265,10 +267,15 @@ Keep it terse — 1–2 lines per ticket, never a dump of agent output. After ea
 
 **Review:** 5 rounds across 3 PRs · 11 fixes · 4 skipped with reply
 
-**Follow-up tickets filed** (open, not run):
+**Follow-up tickets — promoted** (released to `agent:auto`, will run unattended):
 | # | Title | Why deferred |
 |---|-------|--------------|
 | #604 | ... | pre-existing, surfaced by review of #602 |
+
+**Follow-up tickets — held** (still `agent:queued`, needs you):
+| # | Title | Which axis failed |
+|---|-------|-------------------|
+| #605 | ... | verification: needs a visual check |
 
 **Autonomous logic changes** (applied without asking — worth a look):
 - #602 `a1b2c3d`: <one line>
@@ -278,6 +285,20 @@ Keep it terse — 1–2 lines per ticket, never a dump of agent output. After ea
 ```
 
 Lead with what landed and what needs a human's eyes. The autonomous-changes list is the price of unattended merging — every judgment call made overnight, auditable in one screen.
+
+#### Releasing the queue
+
+Before writing the report, and **only after the final wave has merged and its deploy is green**, release the follow-ups held since 7.5:
+
+```bash
+gh issue edit <N> --repo <REPO> --remove-label "agent:queued" --add-label "agent:auto"
+```
+
+Promote only the ones ship classified `autonomy: auto`. Anything `assisted` or `manual` stays queued and goes in the held table — that is a human's call, not this run's.
+
+**If any wave's deploy went red, promote nothing.** Base is broken; queueing more work onto it is the wrong move.
+
+The two tables are the honest answer to "is this project closed?" The promoted list drains itself. The held list does not, and it is the only thing standing between this project and the next one.
 
 ---
 
@@ -289,7 +310,7 @@ Lead with what landed and what needs a human's eyes. The autonomous-changes list
 - **Never start a wave after a failed one.** A failed ship means the base is missing code that later waves assume.
 - **Keep the main context clean.** Extract pass/fail, commit sha, test counts from agent results; discard the rest.
 - **Commit discipline.** Each ticket produces its own commit(s). The orchestrator never commits ticket code directly.
-- **Label hygiene.** Each agent updates its own ticket to `status:done`. If one forgets, do it after confirming success.
+- **Label hygiene.** Each agent updates its own ticket to `status:done`. If one forgets, do it after confirming success. `status:done` records that an agent *finished*, not that the code landed — closure comes from the merge, via the `Closes #<n>` lines ship puts in the PR body. Do not close a ticket by hand at this point; the wave has not merged yet.
 - **The autonomy contract is `ship`'s.** Don't invent a second set of stop conditions here. Read it there, apply it identically.
 - **Bounded runs stay bounded.** Follow-up tickets get filed, never absorbed into the wave that found them.
 
