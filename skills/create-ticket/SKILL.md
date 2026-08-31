@@ -137,6 +137,12 @@ Downgrade paths:
 An `auto` ticket gets **one** correction round in CI, not a budget to spend. That
 is deliberate, and it is what keeps the five axes honest.
 
+It is also not an arbitrary number. `ship`'s B.0 sizes its fix budget from changed
+lines of code, and its bottom tier — under 600 — is one round. A ticket that passes
+the blast-radius axis produces a diff far below that, so `auto` work lands in the
+one-round tier by construction rather than by decree. A ticket whose diff comes back
+big enough to earn a second round has already failed the axis that let it through.
+
 The axes claim a ticket is narrow, contract-stated, and verifiable without a
 browser. If that is true, it lands first try or after one fix. If it is still red
 after that, the likeliest explanation is not that the agent needed another go —

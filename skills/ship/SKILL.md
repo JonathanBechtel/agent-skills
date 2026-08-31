@@ -282,25 +282,66 @@ how convergence is proven and does not itself consume another iteration.
 **Size the budget once per PR ship lifecycle**, at the first Phase B tick:
 
 ```bash
-git diff <base>...HEAD --numstat   # reviewable surface; additions + deletions
-git rev-list --count <base>..HEAD # independent changes
+# Reviewable surface: changed lines of CODE. Blank lines and whole-line
+# comments are stripped before counting.
+git diff <base>...HEAD --unified=0 \
+  | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' \
+  | sed -E 's/^[+-]//' \
+  | grep -vE '^[[:space:]]*$' \
+  | grep -vE '^[[:space:]]*(#|//|/\*|\*/|\*|<!--)' \
+  | wc -l
+
+git rev-list --count <base>..HEAD   # independent changes
 ```
 
-Count lines across everything the reviewer is expected to validate: application code, scripts,
-migrations, tests, docs/specs, and configuration. Exclude generated artifacts, vendored code,
-lockfiles, and binaries by judgment; do not treat a docs-only or migration-only PR as zero lines.
+Count across everything the reviewer must validate: application code, scripts, migrations, tests,
+docs/specs, and configuration. Exclude generated artifacts, vendored code, lockfiles, and binaries
+by judgment; do not treat a docs-only or migration-only PR as zero lines.
 
-| Reviewable changed lines | Commits on the branch | Fix budget |
+**Comments and blank lines do not count, and neither do docstrings.** This is not a formality. An
+agent-written diff runs far more comment-heavy than a hand-written one, and a repo that *requires*
+docstrings on changed tests inflates the count further. Counting them measures prose volume and
+calls it complexity, which buys extra fix rounds for changes that are not harder to review.
+
+The pipeline above catches blank lines and whole-line comments but not Python docstrings, because a
+line-oriented filter cannot see block context. That is fine almost always — precision only matters
+when the raw count sits near a tier boundary. When it does, count exactly:
+
+```python
+import io, sys, tokenize
+
+def code_lines(src: str) -> int:
+    """Lines carrying code: no blanks, no comments, no docstring bodies."""
+    lines, prev, at_start = set(), tokenize.INDENT, True
+    for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+        if tok.type in (tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE,
+                        tokenize.INDENT, tokenize.DEDENT, tokenize.ENDMARKER):
+            continue
+        if tok.type == tokenize.STRING and (at_start or prev == tokenize.INDENT):
+            at_start = False
+            continue   # docstring: module, class, or function
+        at_start = False
+        prev = tok.type
+        lines.update(range(tok.start[0], tok.end[0] + 1))
+    return len(lines)
+
+print(sum(code_lines(open(f, encoding="utf-8").read()) for f in sys.argv[1:]))
+```
+
+| Reviewable code lines | Commits on the branch | Fix budget |
 |---|---|---|
-| ≤ 150 | ≤ 3 | 1 iteration |
-| ≤ 600 | ≤ 8 | 2 iterations |
-| > 600 | > 8 | 3 iterations |
+| < 600 | ≤ 6 | 1 iteration |
+| < 1500 | ≤ 12 | 2 iterations |
+| ≥ 1500 | > 12 | 3 iterations |
 
-Take the **larger** verdict from lines and commits. Hard cap 4. `--rounds N` overrides the number of
-fix iterations despite its legacy name.
+Take the **larger** verdict from lines and commits. The table's maximum is 3; `--rounds N` overrides
+the number of fix iterations despite its legacy name, hard cap 4.
 
 Commits are the second axis because they are always readable from the PR. When `/orchestrate`
 passes ticket numbers, count tickets instead; that is the truer count of independent changes.
+
+A change large enough to earn 3 rounds is a change that should probably have been several PRs. Treat
+the top tier as a diagnosis, not an allowance.
 
 Loop rules:
 
