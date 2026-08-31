@@ -191,8 +191,8 @@ One or two sentences. What is wrong or missing, and where.
 
 ## Verification
 **Flavors:** unit, integration
-- <exact test command, copied from the repo spec>
-- <the repo's pre-commit command>
+- <exact test command, scoped to this ticket's tests>
+- <the repo's pre-commit command, scoped to the changed files>
 
 ## Orchestrator Metadata
 - type: bug
@@ -223,6 +223,21 @@ Only when `autonomy: auto`:
 So a manual documentation ticket is four sections and a `feature` is not much
 more. Only the tickets a machine will run unattended carry the full weight, and
 they carry it because nobody will be watching.
+
+### Scope the verification commands
+
+Write commands that check **this ticket**, not the repo. `pre-commit run --all-files`
+and a whole-suite `pytest` both belong to CI, which runs them anyway on the PR the
+executor opens.
+
+An unattended executor copies these commands out of the ticket and runs them, often
+more than once. A full-repo pre-commit pass on a cold cache, or an integration suite
+pointed at a *remote* database rather than a local container, turns a gate that should
+cost seconds into one that costs longer than the CI run it was meant to pre-empt. That
+is not a faster feedback loop, it is a second one.
+
+So: name the test paths the change actually touches, and scope pre-commit to the
+changed files. The repo-wide passes stay where they already are.
 
 ## 6. The Autonomy Envelope
 
@@ -361,7 +376,7 @@ current behavior. No change to existing callers.
 ## Verification
 **Flavors:** unit, integration
 - `pytest tests/integration/test_summer_league_explorer.py -q`
-- `pre-commit run -a`
+- `pre-commit run --files app/routes/summer_league.py tests/integration/test_summer_league_explorer.py`
 
 ## Autonomy Envelope
 - Forbidden: .github/, deploy/, alembic/versions/, pyproject.toml
