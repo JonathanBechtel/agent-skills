@@ -269,26 +269,32 @@ executable by the other.
 | tier | Claude Code | Codex |
 |---|---|---|
 | small | `haiku` | `luna` |
-| standard | `sonnet` | — |
-| deep | `opus` | — |
+| standard | `sonnet` | `luna` |
+| deep | `opus` | `luna` |
 
-The Codex column names agents defined in the target repo's `.codex/agents/`, and
-it is deliberately sparse: only `luna` exists today. A dash means no Codex agent
-is defined at that tier, so a ticket at that tier routes to Claude regardless of
-`runtime:`. Filling a dash in means adding the matching `.codex/agents/<name>.toml`
-and its `[agents.<name>]` entry — `validate.sh` fails if the table claims an
+The Codex column names agents defined in the target repo's `.codex/agents/`.
+`luna` (`gpt-5.6-luna`, reasoning effort `xhigh`) covers every tier on purpose.
+Unattended work is the cost-sensitive half of this system — it runs around the
+clock without anyone deciding each time that it was worth it — and luna at xhigh
+is the cheapest thing that reliably clears these repos' guards. The tier is still
+load-bearing: it selects the Claude column and it is the honest record of how
+hard the ticket is. It just no longer buys a larger Codex model.
+
+If some tier later needs its own Codex agent, add `.codex/agents/<name>.toml` and
+its `[agents.<name>]` entry first. `validate.sh` fails if this table claims an
 agent the repo does not define, because a table maintained by hand in three
-places is not a mapping, it is three guesses.
-
-Naming an agent here that does not exist is worse than leaving the dash: the
-dispatcher would route a ticket to it and the job would die on a config error,
-unattended, with the ticket still labelled as running.
+places is not a mapping, it is three guesses. Naming an agent that does not exist
+is worse than leaving a dash: the dispatcher would route a ticket to it and the
+job would die on a config error, unattended, with the ticket still labelled as
+running.
 
 `autonomy: auto` implies `tier: small` by construction. The five axes select
 for exactly the profile a fast, narrowly scoped agent is for.
 
-**Routing:** default `runtime: any`, resolved by the repo spec. The ticket may
-override.
+**Routing:** default `runtime: any`, resolved by the repo spec. Where both
+runtimes are configured, `any` resolves to Codex — luna is defined at every tier,
+and it is the cheap one. The ticket may override with `runtime: claude`, which is
+how you deliberately buy a bigger model for one ticket.
 
 ## 8. Trigger and queueing
 

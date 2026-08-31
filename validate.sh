@@ -137,7 +137,7 @@ if [ -f "$TIER_TABLE" ]; then
         if ($4 == "" || $4 == "-" || $4 == "---" || $4 == "Codex") next;
         if ($4 == "—") next;   # em-dash: no agent defined at this tier
         print $4
-      }')"
+      }' | sort -u)"
 
   if [ -z "$agents" ]; then
     echo "  no Codex agents claimed — nothing to check"
