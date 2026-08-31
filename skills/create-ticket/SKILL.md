@@ -280,8 +280,25 @@ Codex. Extend it **additively**, so existing readers of `agent:` keep working:
 - runtime: any | claude | codex
 - agent: haiku            # Claude Code hint
 - codex-agent: luna       # Codex hint
+- database: container     # container | fork
 - wave: —
 ```
+
+### `database` — where the executor's tests point
+
+`container` (the default) gives the job a Postgres service container on
+localhost. `fork` gives it a copy-on-write fork of production.
+
+Default to `container` and mean it. The executor pays this cost on *every*
+edit-verify cycle, not once: measured on one DraftGuru integration file,
+**6m02s** against a remote fork versus seconds against localhost. An agent that
+iterates four times has spent half an hour waiting on a network. That is how an
+unattended run silently becomes an unattended hour.
+
+Ask for `fork` only when the ticket needs data an empty database does not have —
+a query plan over real row counts, a migration against real shapes, a bug that
+only reproduces at production scale. A ticket whose flavors are `unit` and
+`integration` and whose subject is application logic almost never does.
 
 `tier` is canonical. Each runtime reads its own hint line and falls back to
 mapping `tier` when the hint is absent, so a ticket filed by one runtime is
