@@ -1,0 +1,4 @@
+interface:
+  display_name: "Simplify Code"
+  short_description: "Review reuse, duplication, quality, and efficiency"
+  default_prompt: "Use $simplify-code to review and simplify the current branch diff while preserving behavior."
