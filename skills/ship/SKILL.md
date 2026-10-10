@@ -168,9 +168,9 @@ git diff --stat                                         # plus any uncommitted c
 
 Trivial and non-application diffs aren't worth a pass; the goal is branches where a non-trivial amount of application code was written.
 
-**Run.** If not skipped, invoke the `/simplify` skill scoped to the branch diff (`<base>...HEAD` plus uncommitted). It reviews for reuse, simplification, efficiency, and altitude cleanups and applies the fixes to the working tree. Quality only — it does not change behavior and does not hunt for bugs (that's `/code-review`, run separately if wanted).
+**Run.** If not skipped, read and execute the shared [simplify-code skill](../simplify-code/SKILL.md), scoped to the branch diff (`<base>...HEAD` plus staged, unstaged, and relevant new source files). Invoke `/simplify-code` in Claude Code or `$simplify-code` in Codex; loading the linked package directly is equivalent when the current session has not refreshed skill discovery. Use this package rather than a runtime's bundled review command so both runtimes perform the same reuse, duplication, quality, and efficiency passes. If the package is missing, report the broken dependency and stop before commit or push; do not silently substitute an informal review.
 
-**Verify + commit.** If `/simplify` made no changes, proceed to A.3 unchanged. If it modified files:
+**Verify + commit.** If `simplify-code` made no changes, proceed to A.3 unchanged. If it modified files:
 
 1. Re-run the smallest relevant verification for the touched slice (the unit + integration no_deps tests covering those modules) and `pre-commit run` on the changed files.
 2. **If verification passes:** stage only the simplified files and commit them as a **separate** scoped commit (e.g. `refactor(<scope>): simplify <area> (pre-ship cleanup)`). Keep this distinct from the feature/fix commit in A.3.
