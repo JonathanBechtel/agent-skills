@@ -60,6 +60,24 @@ Before applying any default in this skill (commit message style, branch naming, 
 
 Repo rules **win** over the defaults in this skill.
 
+## Validation policy
+
+Read the project's README/CLAUDE shipping policy before waiting on CI. When the
+project or user selects local validation, run the relevant tests and static checks
+locally before pushing, record commands/results and the validated revision in the
+PR, and use the PR/CI process to resolve bot feedback. Revalidate affected code
+after review fixes. Do not wait for, rerun, or require duplicate remote test,
+coverage, or static-analysis checks in this mode. Remote validation is opt-in when
+the project provides it; retain that project's build/deployment and live-health
+requirements. Do not change another project's checks or settings implicitly.
+
+In local-validation mode, B.3 and C.2 require successful recorded local validation
+and converged current-head bot review. Skipped or policy-waived remote validation
+checks do not block landing; `UNSTABLE`/`BLOCKED` may be accepted only when solely
+caused by those checks and the project's merge rules permit it. Conflicts, human
+change requests and failed deployment checks still block. Never label skipped
+remote tests as passing or bypass a GitHub protection rule with an admin merge.
+
 ## Pre-flight refusals
 
 Stop and tell the user — do not silently fix:
@@ -403,8 +421,8 @@ When stopping, print a clearly visible terminal block (no system notifier — te
 
 All of:
 
-1. All non-Sonar required checks are green (state == SUCCESS).
-2. `mergeable: true` and `mergeStateStatus: CLEAN`.
+1. Validation satisfies the project policy above: recorded local results in local-validation mode; all non-Sonar required checks green in remote-validation mode.
+2. `mergeable: true` and `mergeStateStatus: CLEAN`, subject to the local-validation exception above.
 3. Every bot comment the watcher chose to **address** has a corresponding fix push (commit sha tracked in the ledger).
 4. Every bot comment the watcher chose to **skip** has a posted reply with reasoning, and every `DEFER_TO_TICKET` has a filed issue named in a reply.
 5. The review loop has converged (B.0): the current head's latest review produced zero
@@ -417,7 +435,7 @@ When done, print:
 ║  /ship — DONE ✓                                              ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  PR: <url>                                                   ║
-║  All checks green, mergeable, bot comments addressed.        ║
+║  Validation complete, mergeable, bot comments addressed.        ║
 ╚══════════════════════════════════════════════════════════════╝
 
 Fixes applied this session:
@@ -620,8 +638,8 @@ Never resolve a thread a human started, and never resolve one you did not addres
 
 Re-read state (B.1). Merging on stale state is how base ends up red. Require, on the **current** head sha:
 
-- all non-Sonar required checks green
-- `mergeable: true`, `mergeStateStatus: CLEAN`
+- validation satisfies the project policy above (local results or required remote checks)
+- `mergeable: true`, `mergeStateStatus: CLEAN` (or the policy-waived-check exception above)
 - no unresolved non-human threads
 
 `mergeStateStatus: BEHIND` → `gh pr update-branch <N>`, then return to Phase B for one tick while CI re-runs. `DIRTY` → conflict: attended, hard-stop; autonomous, one mechanical rebase attempt per the autonomy contract.
